@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>التحقق من النتيجة</title>
+  <style>
+    body{font-family:Tahoma,Arial; margin:24px}
+    .box{max-width:860px; margin:auto; border:1px solid #ddd; padding:16px; border-radius:12px}
+    input,button{font-size:16px; padding:10px; width:100%; margin-top:10px}
+    button{cursor:pointer}
+    .muted{color:#666; font-size:14px}
+    .bad{color:#b00020; font-weight:bold}
+    .ok{color:green; font-weight:bold}
+
+    .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:14px}
+    .modal{background:#fff; border-radius:12px; max-width:1100px; width:100%; padding:16px; max-height:92vh; overflow:auto}
+    .head{display:flex; gap:10px; align-items:flex-start; justify-content:space-between}
+    .title h2{margin:0 0 4px}
+    .title .sub{margin:0; color:#444}
+    .pill{padding:6px 10px; border-radius:999px; background:#f3f3f3; font-size:14px}
+
+    table{width:100%; border-collapse:collapse; margin-top:12px}
+    th,td{border:1px solid #ddd; padding:8px; text-align:center; font-size:14px}
+    th{background:#f7f7f7}
+    .subject{ text-align:right; white-space:nowrap }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>التحقق من النتيجة</h2>
+    <p class="muted">امسح QR من الورقة، ثم أدخل PIN الموجود أسفل الورقة لعرض جدول الدرجات.</p>
+
+    <input id="pin" inputmode="numeric" placeholder="PIN" />
+    <button id="btn">تحقق</button>
+    <div id="msg"></div>
+  </div>
+
+  <div id="modalBg" class="modal-bg">
+    <div class="modal">
+      <div class="head">
+        <div class="title">
+          <h2 id="mSchool">—</h2>
+          <p id="mPrincipal" class="sub">—</p>
+          <p id="mStudent" class="sub">—</p>
+        </div>
+        <div>
+          <div id="mOverall" class="pill">—</div>
+          <button style="margin-top:10px" onclick="closeModal()">إغلاق</button>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>المادة</th>
+            <th>الفصل الأول</th>
+            <th>نصف السنة</th>
+            <th>الفصل الثاني</th>
+            <th>السعي السنوي</th>
+            <th>الامتحان النهائي</th>
+            <th>الدرجة النهائية (د1)</th>
+            <th>امتحان الدور الثاني</th>
+            <th>الدرجة النهائية (د2)</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "https://YOUR-WORKER.your-subdomain.workers.dev/verify"; // غيّره
+
+    function closeModal(){ document.getElementById("modalBg").style.display = "none"; }
+
+    function qs(name){
+      const u = new URL(location.href);
+      return u.searchParams.get(name) || "";
+    }
+
+    function renderRows(rows){
+      const tb = document.getElementById("tbody");
+      tb.innerHTML = "";
+      for(const r of rows){
+        const tr = document.createElement("tr");
+        const cells = [
+          ["subject", "subject"],
+          ["t1", ""],
+          ["mid", ""],
+          ["t2", ""],
+          ["effort", ""],
+          ["final_exam", ""],
+          ["final1", ""],
+          ["d2_exam", ""],
+          ["final2", ""],
+        ];
+        for(const [k, cls] of cells){
+          const td = document.createElement("td");
+          td.textContent = (r[k] ?? "");
+          if(cls) td.className = cls;
+          tr.appendChild(td);
+        }
+        tb.appendChild(tr);
+      }
+    }
+
+    function openModal(data){
+      document.getElementById("mSchool").textContent = data.school || "—";
+      document.getElementById("mPrincipal").textContent = "المديرة: " + (data.principal || "—");
+      document.getElementById("mStudent").textContent =
+        `الطالب: ${data.student} — الصف: ${data.grade} — الشعبة: ${data.section} — العام الدراسي: ${data.academic_year || ""}`;
+
+      document.getElementById("mOverall").textContent = "النتيجة: " + (data.overall || "—");
+      const ov = (data.overall || "");
+      document.getElementById("mOverall").className = "pill " + (ov.includes("ناجح") ? "ok" : (ov.includes("راسب") ? "bad" : ""));
+
+      renderRows(data.rows || []);
+      document.getElementById("modalBg").style.display = "flex";
+    }
+
+    document.getElementById("btn").addEventListener("click", async () => {
+      const pin = document.getElementById("pin").value.trim();
+      const token = qs("t");
+      const msg = document.getElementById("msg");
+      msg.textContent = "";
+      msg.className = "";
+
+      if(!token){
+        msg.textContent = "الرابط لا يحتوي Token. امسح QR الصحيح من الورقة.";
+        msg.className = "bad";
+        return;
+      }
+      if(pin.length < 4){
+        msg.textContent = "أدخل PIN صحيح.";
+        msg.className = "bad";
+        return;
+      }
+
+      try{
+        const resp = await fetch(API_URL, {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ token, pin })
+        });
+        const data = await resp.json();
+        if(!data || !data.ok){
+          msg.textContent = (data && data.error) ? data.error : "PIN غير صحيح أو نتيجة غير موجودة.";
+          msg.className = "bad";
+          return;
+        }
+        openModal(data);
+      }catch(e){
+        msg.textContent = "تعذر الاتصال بخدمة التحقق.";
+        msg.className = "bad";
+      }
+    });
+  </script>
+</body>
+</html>
