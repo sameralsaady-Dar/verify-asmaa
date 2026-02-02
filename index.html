@@ -5,82 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>التحقق من النتيجة</title>
   <style>
-    body{font-family:Tahoma,Arial; margin:24px; background:#f6f6f6}
-    .box{
-      max-width:860px; margin:auto; background:#fff;
-      border:1px solid #ddd; padding:16px; border-radius:12px
-    }
+    body{font-family:Tahoma,Arial; margin:24px}
+    .box{max-width:860px; margin:auto; border:1px solid #ddd; padding:16px; border-radius:12px}
     input,button{font-size:16px; padding:10px; width:100%; margin-top:10px}
     button{cursor:pointer}
     .muted{color:#666; font-size:14px}
     .bad{color:#b00020; font-weight:bold}
     .ok{color:green; font-weight:bold}
 
-    .modal-bg{
-      position:fixed; inset:0;
-      background:rgba(0,0,0,.45);
-      display:none; align-items:center; justify-content:center;
-      padding:14px;
-    }
-
-    /* ✅ مهم: لا تجعل المودال نفسه scroll على الموبايل */
-    .modal{
-      background:#fff;
-      border-radius:12px;
-      max-width:1100px;
-      width:100%;
-      padding:16px;
-      max-height:92vh;
-      overflow:hidden;            /* بدل overflow:auto */
-      display:flex;               /* ✅ */
-      flex-direction:column;      /* ✅ */
-    }
-
-    .head{
-      display:flex; gap:10px;
-      align-items:flex-start; justify-content:space-between;
-      position:sticky; top:0;
-      background:#fff; z-index:2;
-      padding-bottom:10px;
-      border-bottom:1px solid #eee;
-    }
-
+    .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:14px}
+    .modal{background:#fff; border-radius:12px; max-width:1100px; width:100%; padding:16px; max-height:92vh; overflow:auto}
+    .head{display:flex; gap:10px; align-items:flex-start; justify-content:space-between}
     .title h2{margin:0 0 4px}
-    .title .sub{margin:0; color:#444; line-height:1.5}
-    .pill{padding:6px 10px; border-radius:999px; background:#f3f3f3; font-size:14px; display:inline-block}
+    .title .sub{margin:0; color:#444}
+    .pill{padding:6px 10px; border-radius:999px; background:#f3f3f3; font-size:14px}
 
-    .actions button{
-      width:auto; margin-top:8px;
-      padding:8px 10px; font-size:14px
-    }
-
-    /* ✅ التمرير هنا فقط */
-    .table-wrap{
-      flex:1;
-      overflow:auto;
-      -webkit-overflow-scrolling:touch;
-      margin-top:12px;
-      border:1px solid #eee;
-      border-radius:10px;
-    }
-
-    table{width:100%; border-collapse:collapse; margin:0}
+    table{width:100%; border-collapse:collapse; margin-top:12px}
     th,td{border:1px solid #ddd; padding:8px; text-align:center; font-size:14px}
-    th{background:#f7f7f7; position:sticky; top:0; z-index:1}
+    th{background:#f7f7f7}
     .subject{ text-align:right; white-space:nowrap }
-
-    @media (max-width: 700px){
-      body{margin:12px}
-      .modal-bg{padding:0; align-items:stretch}
-      .modal{
-        height:100vh;
-        max-height:none;
-        border-radius:0;
-        padding:12px;
-      }
-      .subject{white-space:normal}
-      th,td{font-size:13px; padding:7px}
-    }
   </style>
 </head>
 <body>
@@ -94,54 +37,42 @@
   </div>
 
   <div id="modalBg" class="modal-bg">
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal">
       <div class="head">
         <div class="title">
           <h2 id="mSchool">—</h2>
           <p id="mPrincipal" class="sub">—</p>
           <p id="mStudent" class="sub">—</p>
         </div>
-
-        <div class="actions" style="text-align:left">
-          <div id="mOverall" class="pill">—</div><br/>
-          <button onclick="openInBrowser()">فتح في المتصفح</button>
-          <button onclick="closeModal()">إغلاق</button>
+        <div>
+          <div id="mOverall" class="pill">—</div>
+          <button style="margin-top:10px" onclick="closeModal()">إغلاق</button>
         </div>
       </div>
 
-      <div class="table-wrap" aria-label="جدول الدرجات">
-        <table>
-          <thead>
-            <tr>
-              <th>المادة</th>
-              <th>الفصل الأول</th>
-              <th>نصف السنة</th>
-              <th>الفصل الثاني</th>
-              <th>السعي السنوي</th>
-              <th>الامتحان النهائي</th>
-              <th>الدرجة النهائية (د1)</th>
-              <th>امتحان الدور الثاني</th>
-              <th>الدرجة النهائية (د2)</th>
-            </tr>
-          </thead>
-          <tbody id="tbody"></tbody>
-        </table>
-      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>المادة</th>
+            <th>الفصل الأول</th>
+            <th>نصف السنة</th>
+            <th>الفصل الثاني</th>
+            <th>السعي السنوي</th>
+            <th>الامتحان النهائي</th>
+            <th>الدرجة النهائية (د1)</th>
+            <th>امتحان الدور الثاني</th>
+            <th>الدرجة النهائية (د2)</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
     </div>
   </div>
 
   <script>
-    // ✅ ضع رابط الووركر الصحيح هنا
-    const API_URL = "https://verify-asmaa-worker.sameralsaady.workers.dev/verify";
+    const API_URL = "https://YOUR-WORKER.your-subdomain.workers.dev/verify"; // غيّره
 
-    function closeModal(){
-      document.getElementById("modalBg").style.display = "none";
-      document.body.style.overflow = "";
-    }
-
-    function openInBrowser(){
-      window.open(location.href, "_blank");
-    }
+    function closeModal(){ document.getElementById("modalBg").style.display = "none"; }
 
     function qs(name){
       const u = new URL(location.href);
@@ -151,8 +82,7 @@
     function renderRows(rows){
       const tb = document.getElementById("tbody");
       tb.innerHTML = "";
-
-      for(const r of (rows || [])){
+      for(const r of rows){
         const tr = document.createElement("tr");
         const cells = [
           ["subject", "subject"],
@@ -165,10 +95,9 @@
           ["d2_exam", ""],
           ["final2", ""],
         ];
-
         for(const [k, cls] of cells){
           const td = document.createElement("td");
-          td.textContent = (r && r[k] != null) ? r[k] : "";
+          td.textContent = (r[k] ?? "");
           if(cls) td.className = cls;
           tr.appendChild(td);
         }
@@ -180,17 +109,14 @@
       document.getElementById("mSchool").textContent = data.school || "—";
       document.getElementById("mPrincipal").textContent = "المديرة: " + (data.principal || "—");
       document.getElementById("mStudent").textContent =
-        `الطالب: ${data.student || ""} — الصف: ${data.grade || ""} — الشعبة: ${data.section || ""} — العام الدراسي: ${data.academic_year || ""}`;
+        `الطالب: ${data.student} — الصف: ${data.grade} — الشعبة: ${data.section} — العام الدراسي: ${data.academic_year || ""}`;
 
+      document.getElementById("mOverall").textContent = "النتيجة: " + (data.overall || "—");
       const ov = (data.overall || "");
-      const overallEl = document.getElementById("mOverall");
-      overallEl.textContent = "النتيجة: " + (ov || "—");
-      overallEl.className = "pill " + (ov.includes("ناجح") ? "ok" : (ov.includes("راسب") ? "bad" : ""));
+      document.getElementById("mOverall").className = "pill " + (ov.includes("ناجح") ? "ok" : (ov.includes("راسب") ? "bad" : ""));
 
       renderRows(data.rows || []);
-
       document.getElementById("modalBg").style.display = "flex";
-      document.body.style.overflow = "hidden"; // يمنع سكرول الخلفية (مع بقاء سكرول الجدول)
     }
 
     document.getElementById("btn").addEventListener("click", async () => {
@@ -211,46 +137,24 @@
         return;
       }
 
-      msg.textContent = "جارِ التحقق...";
-      msg.className = "muted";
-
       try{
         const resp = await fetch(API_URL, {
           method: "POST",
           headers: {"Content-Type":"application/json"},
           body: JSON.stringify({ token, pin })
         });
-
-        const text = await resp.text();
-        let data = null;
-        try { data = JSON.parse(text); } catch { data = { ok:false, error:text }; }
-
-        if(!resp.ok){
-          msg.textContent = data.error || ("خطأ من الخادم: " + resp.status);
-          msg.className = "bad";
-          return;
-        }
-
+        const data = await resp.json();
         if(!data || !data.ok){
           msg.textContent = (data && data.error) ? data.error : "PIN غير صحيح أو نتيجة غير موجودة.";
           msg.className = "bad";
           return;
         }
-
         openModal(data);
-        msg.textContent = "";
-        msg.className = "";
       }catch(e){
         msg.textContent = "تعذر الاتصال بخدمة التحقق.";
         msg.className = "bad";
       }
     });
-
-    // إغلاق المودال عند الضغط خارج النافذة
-    document.getElementById("modalBg").addEventListener("click", (e) => {
-      if(e.target.id === "modalBg") closeModal();
-    });
   </script>
 </body>
 </html>
-
