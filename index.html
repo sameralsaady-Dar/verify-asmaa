@@ -12,18 +12,26 @@
     .muted{color:#666; font-size:14px}
     .bad{color:#b00020; font-weight:bold}
     .ok{color:green; font-weight:bold}
+    .warn{color:#a15c00; font-weight:bold}
 
     .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:14px}
     .modal{background:#fff; border-radius:12px; max-width:1100px; width:100%; padding:16px; max-height:92vh; overflow:auto}
     .head{display:flex; gap:10px; align-items:flex-start; justify-content:space-between}
     .title h2{margin:0 0 4px}
     .title .sub{margin:0; color:#444}
-    .pill{padding:6px 10px; border-radius:999px; background:#f3f3f3; font-size:14px}
+    .pill{padding:6px 10px; border-radius:999px; background:#f3f3f3; font-size:14px; display:inline-block}
+    .pillRow{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-start; align-items:center}
+    .pill.bad{background:#ffe8ea; color:#b00020; font-weight:bold}
+    .pill.ok{background:#e8fff0; color:#0b6b3a; font-weight:bold}
+    .pill.warn{background:#fff2e1; color:#a15c00; font-weight:bold}
 
     table{width:100%; border-collapse:collapse; margin-top:12px}
     th,td{border:1px solid #ddd; padding:8px; text-align:center; font-size:14px}
     th{background:#f7f7f7}
     .subject{ text-align:right; white-space:nowrap }
+
+    .sectionTitle{margin:16px 0 6px; font-weight:bold}
+    .hide{display:none}
   </style>
 </head>
 <body>
@@ -44,12 +52,17 @@
           <p id="mPrincipal" class="sub">—</p>
           <p id="mStudent" class="sub">—</p>
         </div>
-        <div>
-          <div id="mOverall" class="pill">—</div>
+        <div style="min-width:280px">
+          <!-- ✅ النتيجة النهائية + نتيجة الفصل المُعلَن -->
+          <div class="pillRow">
+            <div id="mOverall" class="pill">—</div>
+            <div id="mPeriod" class="pill">—</div>
+          </div>
           <button style="margin-top:10px" onclick="closeModal()">إغلاق</button>
         </div>
       </div>
 
+      <div class="sectionTitle">جدول الدرجات</div>
       <table>
         <thead>
           <tr>
@@ -66,6 +79,21 @@
         </thead>
         <tbody id="tbody"></tbody>
       </table>
+
+      <!-- ✅ جدول الدور الثاني (يظهر فقط إذا البيانات موجودة) -->
+      <div id="d2Wrap" class="hide">
+        <div class="sectionTitle">جدول درجات الدور الثاني</div>
+        <table>
+          <thead>
+            <tr>
+              <th>المادة</th>
+              <th>امتحان الدور الثاني</th>
+              <th>الدرجة النهائية (د2)</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyD2"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -79,10 +107,32 @@
       return u.searchParams.get(name) || "";
     }
 
+    function firstNonEmpty(obj, keys){
+      for (const k of keys){
+        const v = obj ? obj[k] : undefined;
+        if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+      }
+      return "";
+    }
+
+    function setPill(el, text){
+      el.textContent = text || "—";
+      el.className = "pill";
+      const t = (text || "").trim();
+      if (!t) return;
+
+      // مكمل/راسب أحمر
+      if (t.includes("مكمل") || t.includes("راسب")) el.classList.add("bad");
+      // بقرار برتقالي
+      else if (t.includes("بقرار")) el.classList.add("warn");
+      // ناجح أخضر
+      else if (t.includes("ناجح")) el.classList.add("ok");
+    }
+
     function renderRows(rows){
       const tb = document.getElementById("tbody");
       tb.innerHTML = "";
-      for(const r of rows){
+      for(const r of (rows || [])){
         const tr = document.createElement("tr");
         const cells = [
           ["subject", "subject"],
@@ -105,17 +155,75 @@
       }
     }
 
+    function getMakeupRows(data){
+      // يدعم أسماء متعددة حسب النسخ المختلفة من البرنامج
+      const v = firstNonEmpty(data, ["makeup_rows","makeupRows","d2_rows","second_round","makeup"]);
+      if (Array.isArray(v)) return v;
+      // إذا جاء كنص JSON
+      try{
+        const j = JSON.parse(v);
+        if (Array.isArray(j)) return j;
+      }catch(e){}
+      return [];
+    }
+
+    function renderD2Rows(makeupRows){
+      const wrap = document.getElementById("d2Wrap");
+      const tb = document.getElementById("tbodyD2");
+      tb.innerHTML = "";
+
+      if (!makeupRows || !makeupRows.length){
+        wrap.classList.add("hide");
+        return;
+      }
+
+      // يقبل شكلين:
+      // 1) objects: {subject, d2_exam, final2}
+      // 2) arrays: ["المادة", "د2", "د2 نهائي"]
+      for(const r of makeupRows){
+        let subj="", d2="", f2="";
+        if (Array.isArray(r)){
+          subj = r[0] ?? "";
+          d2   = r[1] ?? "";
+          f2   = r[2] ?? "";
+        } else {
+          subj = r.subject || r.subj || r.material || "";
+          d2   = r.d2_exam || r.d2 || r.second || "";
+          f2   = r.final2 || r.f2 || r.final_second || "";
+        }
+        const tr = document.createElement("tr");
+        const td1 = document.createElement("td"); td1.textContent = subj; td1.className="subject";
+        const td2 = document.createElement("td"); td2.textContent = d2;
+        const td3 = document.createElement("td"); td3.textContent = f2;
+        tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+        tb.appendChild(tr);
+      }
+
+      wrap.classList.remove("hide");
+    }
+
     function openModal(data){
       document.getElementById("mSchool").textContent = data.school || "—";
       document.getElementById("mPrincipal").textContent = "المديرة: " + (data.principal || "—");
       document.getElementById("mStudent").textContent =
         `الطالب: ${data.student} — الصف: ${data.grade} — الشعبة: ${data.section} — العام الدراسي: ${data.academic_year || ""}`;
 
-      document.getElementById("mOverall").textContent = "النتيجة: " + (data.overall || "—");
-      const ov = (data.overall || "");
-      document.getElementById("mOverall").className = "pill " + (ov.includes("ناجح") ? "ok" : (ov.includes("راسب") ? "bad" : ""));
+      // ✅ النتيجة النهائية (كما كانت)
+      const overallText = "النتيجة النهائية: " + (data.overall || "—");
+      setPill(document.getElementById("mOverall"), overallText);
+
+      // ✅ نتيجة الفترة المُعلَنة (الفصل/نصف/…)
+      const pLabel = firstNonEmpty(data, ["period_label","periodLabel","period","periodName"]) || "نتيجة الفترة";
+      const pOv    = firstNonEmpty(data, ["period_overall","periodOverall","period_result","periodResult","periodStatus"]) || "—";
+      const periodText = `${pLabel}: ${pOv}`;
+      setPill(document.getElementById("mPeriod"), periodText);
 
       renderRows(data.rows || []);
+
+      // ✅ جدول الدور الثاني
+      const mk = getMakeupRows(data);
+      renderD2Rows(mk);
+
       document.getElementById("modalBg").style.display = "flex";
     }
 
