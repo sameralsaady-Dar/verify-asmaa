@@ -12,30 +12,25 @@
     .muted{color:#666; font-size:14px}
     .bad{color:#b00020; font-weight:bold}
     .ok{color:green; font-weight:bold}
-    .warn{color:#a15c00; font-weight:bold}
 
     .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:14px}
     .modal{background:#fff; border-radius:12px; max-width:1100px; width:100%; padding:16px; max-height:92vh; overflow:auto}
     .head{display:flex; gap:10px; align-items:flex-start; justify-content:space-between}
     .title h2{margin:0 0 4px}
     .title .sub{margin:0; color:#444}
-    .pill{padding:6px 10px; border-radius:999px; background:#f3f3f3; font-size:14px; display:inline-block}
-    .pillRow{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-start; align-items:center}
-    .pill.bad{background:#ffe8ea; color:#b00020; font-weight:bold}
-    .pill.ok{background:#e8fff0; color:#0b6b3a; font-weight:bold}
-    .pill.warn{background:#fff2e1; color:#a15c00; font-weight:bold}
 
     table{width:100%; border-collapse:collapse; margin-top:12px}
     th,td{border:1px solid #ddd; padding:8px; text-align:center; font-size:14px}
     th{background:#f7f7f7}
-    .subject{ text-align:right; white-space:nowrap }
+    .subject{text-align:right; white-space:nowrap}
 
     .sectionTitle{margin:16px 0 6px; font-weight:bold}
     .hide{display:none}
-    s{opacity:.75} /* شكل الشطب أخف */
+    s{opacity:.75}
   </style>
 </head>
 <body>
+
   <div class="box">
     <h2>التحقق من النتيجة</h2>
     <p class="muted">امسح QR من الورقة، ثم أدخل PIN الموجود أسفل الورقة لعرض جدول الدرجات.</p>
@@ -52,15 +47,6 @@
           <h2 id="mSchool">—</h2>
           <p id="mPrincipal" class="sub">—</p>
           <p id="mStudent" class="sub">—</p>
-        </div>
-        <div style="min-width:280px">
-          <!-- ✅ فقط نتيجة الفترة (بدون النتيجة النهائية) -->
-          <div class="pillRow">
-            <div id="mPeriod" class="pill">—</div>
-          </div>
-          <p class="muted" style="margin:10px 0 0">
-            للإغلاق: اضغط خارج النافذة أو اضغط Esc
-          </p>
         </div>
       </div>
 
@@ -96,275 +82,126 @@
     </div>
   </div>
 
-  <script>
-    const API_URL = "https://verify-asmaa-worker.sameralsaady.workers.dev/verify";
+<script>
+  const API_URL = "https://verify-asmaa-worker.sameralsaady.workers.dev/verify";
 
-    function closeModal(){ document.getElementById("modalBg").style.display = "none"; }
+  function closeModal(){
+    document.getElementById("modalBg").style.display = "none";
+  }
 
-    document.getElementById("modalBg").addEventListener("click", (e)=>{
-      if (e.target.id === "modalBg") closeModal();
-    });
-    document.getElementById("modal").addEventListener("click", (e)=> e.stopPropagation());
-    document.addEventListener("keydown", (e)=>{ if (e.key === "Escape") closeModal(); });
+  document.getElementById("modalBg").addEventListener("click", (e)=>{
+    if (e.target.id === "modalBg") closeModal();
+  });
+  document.getElementById("modal").addEventListener("click", (e)=> e.stopPropagation());
+  document.addEventListener("keydown", (e)=>{ if (e.key === "Escape") closeModal(); });
 
-    function qs(name){
-      const u = new URL(location.href);
-      return u.searchParams.get(name) || "";
+  function qs(name){
+    return new URL(location.href).searchParams.get(name) || "";
+  }
+
+  function cleanText(v){
+    if(v === null || v === undefined) return "";
+    return String(v).replace(/\u0336/g,"").replace(/\s+/g," ").trim();
+  }
+
+  function parseStrike(v){
+    if(!v || !String(v).includes("\u0336")) return null;
+    const raw = String(v).replace(/\u0336/g,"");
+    const m = raw.match(/^(\d+)/);
+    if(!m) return null;
+    return { old:m[1], rest:raw.slice(m[1].length).trim() };
+  }
+
+  function setCell(td, v){
+    const p = parseStrike(v);
+    if(p){
+      td.innerHTML = `<s>${p.old}</s>${p.rest ? " "+p.rest : ""}`;
+    }else{
+      td.textContent = cleanText(v);
     }
+  }
 
-    function firstNonEmpty(obj, keys){
-      for (const k of keys){
-        const v = obj ? obj[k] : undefined;
-        if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+  function renderRows(rows){
+    const tb = document.getElementById("tbody");
+    tb.innerHTML = "";
+    for(const r of (rows||[])){
+      const tr = document.createElement("tr");
+      const cols = ["subject","t1","mid","t2","effort","final_exam","final1"];
+      for(const k of cols){
+        const td = document.createElement("td");
+        if(k==="subject") td.className="subject";
+        setCell(td, r[k]);
+        tr.appendChild(td);
       }
-      return "";
+      tb.appendChild(tr);
+    }
+  }
+
+  function renderD2(rows){
+    const wrap = document.getElementById("d2Wrap");
+    const tb = document.getElementById("tbodyD2");
+    tb.innerHTML = "";
+
+    const d2rows = (rows||[]).filter(r =>
+      String(r?.d2_exam||"").trim() || String(r?.final2||"").trim()
+    );
+
+    if(!d2rows.length){
+      wrap.classList.add("hide");
+      return;
     }
 
-    function setPill(el, text){
-      el.textContent = text || "—";
-      el.className = "pill";
-      const t = (text || "").trim();
-      if (!t) return;
-
-      if (t.includes("مكمل") || t.includes("راسب")) el.classList.add("bad");
-      else if (t.includes("بقرار")) el.classList.add("warn");
-      else if (t.includes("ناجح")) el.classList.add("ok");
+    for(const r of d2rows){
+      const tr = document.createElement("tr");
+      const td1 = document.createElement("td"); td1.className="subject"; setCell(td1, r.subject);
+      const td2 = document.createElement("td"); setCell(td2, r.d2_exam);
+      const td3 = document.createElement("td"); setCell(td3, r.final2);
+      tr.append(td1,td2,td3);
+      tb.appendChild(tr);
     }
+    wrap.classList.remove("hide");
+  }
 
-    // ====== عرض الشطب بشكل نظيف بدون \u0336 ======
-    function parseStrikeDecision(s){
-      // يحول نص مثل: "4̶5̶ (50)" إلى { old:"45", rest:"(50)" }
-      if (s === null || s === undefined) return null;
-      const raw = String(s);
+  function openModal(data){
+    document.getElementById("mSchool").textContent = data.school || "—";
+    document.getElementById("mPrincipal").textContent = "المديرة: " + (data.principal||"—");
+    document.getElementById("mStudent").textContent =
+      `الطالب: ${data.student} — الصف: ${data.grade} — الشعبة: ${data.section} — العام الدراسي: ${data.academic_year||""}`;
 
-      // إذا ماكو \u0336 أصلاً، رجّع null
-      if (!raw.includes("\u0336")) return null;
+    const rows = data.rows || [];
+    renderRows(rows);
+    renderD2(rows);
 
-      // إزالة \u0336 من النص لاستخراج الرقم القديم
-      const noComb = raw.replace(/\u0336/g, "");
+    document.getElementById("modalBg").style.display = "flex";
+  }
 
-      // حاول استخراج الرقم القديم (قبل (50) أو قبل مسافة)
-      const oldNumMatch = noComb.match(/^\s*([0-9]+(\.[0-9]+)?)\s*/);
-      const oldNum = oldNumMatch ? oldNumMatch[1] : "";
+  document.getElementById("btn").addEventListener("click", async ()=>{
+    const pin = document.getElementById("pin").value.trim();
+    const token = qs("t");
+    const msg = document.getElementById("msg");
+    msg.textContent=""; msg.className="";
 
-      // الباقي (مثل (50)) مع تنظيف بسيط
-      let rest = noComb;
-      if (oldNumMatch) rest = noComb.slice(oldNumMatch[0].length);
-      rest = rest.replace(/\s+/g, " ").trim();
+    if(!token){ msg.textContent="الرابط لا يحتوي Token."; msg.className="bad"; return; }
+    if(pin.length<4){ msg.textContent="أدخل PIN صحيح."; msg.className="bad"; return; }
 
-      return { old: oldNum, rest };
-    }
-
-    function cleanText(s){
-      if (s === null || s === undefined) return "";
-      // لا نحذف الشطب هنا — فقط ننظف مسافات
-      return String(s).replace(/\s+/g, " ").trim();
-    }
-
-    function setCellValue(td, value){
-      const parsed = parseStrikeDecision(value);
-      if (parsed && parsed.old){
-        // ✅ عرض الشطب بشكل HTML
-        td.innerHTML = `<s>${parsed.old}</s>${parsed.rest ? " " + escapeHtml(parsed.rest) : ""}`;
-      } else {
-        td.textContent = cleanText(value);
-      }
-    }
-
-    function escapeHtml(str){
-      return String(str).replace(/[&<>"']/g, m => ({
-        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-      }[m]));
-    }
-
-    function isDecisionValue(v){
-      const s = String(v ?? "");
-      return s.includes("(50)") || s.includes("（50）");
-    }
-
-    function numFrom(v){
-      if (v === null || v === undefined) return null;
-      // للحساب نزيل \u0336 فقط، لكن لا نؤثر على العرض
-      const s = String(v).replace(/\u0336/g, "").trim();
-      if (!s) return null;
-      const m = s.match(/(\d+(\.\d+)?)/);
-      if (!m) return null;
-      const n = parseFloat(m[1]);
-      return Number.isFinite(n) ? n : null;
-    }
-
-    function detectAnnouncedPeriod(rows){
-      const has = (k) => (rows || []).some(r => String(r?.[k] ?? "").trim() !== "");
-      if (has("final1")) return { label: "نتيجة الدرجة النهائية", key: "final1" };
-      if (has("final_exam")) return { label: "نتيجة الامتحان النهائي", key: "final_exam" };
-      if (has("effort")) return { label: "نتيجة السعي السنوي", key: "effort" };
-      if (has("t2")) return { label: "نتيجة الفصل الثاني", key: "t2" };
-      if (has("mid")) return { label: "نتيجة نصف السنة", key: "mid" };
-      if (has("t1")) return { label: "نتيجة الفصل الأول", key: "t1" };
-      return { label: "نتيجة الفترة", key: "" };
-    }
-
-    function computePeriodOverall(rows, key){
-      if (!key) return "—";
-      let hasAny=false, hasFail=false, hasDecision=false;
-
-      for (const r of (rows || [])){
-        const subj = String(r?.subject ?? "").trim();
-        if (!subj) continue;
-
-        const raw = r?.[key];
-        const sv = String(raw ?? "").trim();
-        if (!sv) continue;
-
-        hasAny = true;
-        if (isDecisionValue(sv)) hasDecision = true;
-
-        const n = numFrom(sv);
-        if (n !== null && n < 50 && !isDecisionValue(sv)) hasFail = true;
-      }
-
-      if (!hasAny) return "—";
-      if (hasFail) return "مكمل";
-      if (hasDecision) return "ناجح بقرار";
-      return "ناجح";
-    }
-
-    function renderRows(rows){
-      const tb = document.getElementById("tbody");
-      tb.innerHTML = "";
-      for(const r of (rows || [])){
-        const tr = document.createElement("tr");
-        const cells = [
-          ["subject", "subject"],
-          ["t1", ""],
-          ["mid", ""],
-          ["t2", ""],
-          ["effort", ""],
-          ["final_exam", ""],
-          ["final1", ""],
-        ];
-        for(const [k, cls] of cells){
-          const td = document.createElement("td");
-          if(cls) td.className = cls;
-          setCellValue(td, (r?.[k] ?? ""));
-          tr.appendChild(td);
-        }
-        tb.appendChild(tr);
-      }
-    }
-
-    function getMakeupRows(data){
-      const v = firstNonEmpty(data, ["makeup_rows","makeupRows","d2_rows","second_round","makeup"]);
-      if (Array.isArray(v)) return v;
-      try{
-        const j = JSON.parse(v);
-        if (Array.isArray(j)) return j;
-      }catch(e){}
-      return [];
-    }
-
-    function renderD2FromRows(rows, onlyIfMakeup){
-      const wrap = document.getElementById("d2Wrap");
-      const tb = document.getElementById("tbodyD2");
-      tb.innerHTML = "";
-
-      const d2Rows = (rows || []).filter(r => {
-        const d2 = String(r?.d2_exam ?? "").trim();
-        const f2 = String(r?.final2 ?? "").trim();
-        return d2 !== "" || f2 !== "";
+    try{
+      const r = await fetch(API_URL,{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ token, pin })
       });
-
-      if (onlyIfMakeup && !d2Rows.length){
-        wrap.classList.add("hide");
+      const data = await r.json();
+      if(!data || !data.ok){
+        msg.textContent = data?.error || "PIN غير صحيح.";
+        msg.className="bad";
         return;
       }
-
-      if (!d2Rows.length){
-        wrap.classList.add("hide");
-        return;
-      }
-
-      for (const r of d2Rows){
-        const tr = document.createElement("tr");
-
-        const td1 = document.createElement("td"); td1.className="subject";
-        setCellValue(td1, r?.subject ?? "");
-
-        const td2 = document.createElement("td");
-        setCellValue(td2, r?.d2_exam ?? "");
-
-        const td3 = document.createElement("td");
-        setCellValue(td3, r?.final2 ?? "");
-
-        tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
-        tb.appendChild(tr);
-      }
-
-      wrap.classList.remove("hide");
+      openModal(data);
+    }catch{
+      msg.textContent="تعذر الاتصال بخدمة التحقق.";
+      msg.className="bad";
     }
-
-    function openModal(data){
-      document.getElementById("mSchool").textContent = data.school || "—";
-      document.getElementById("mPrincipal").textContent = "المديرة: " + (data.principal || "—");
-      document.getElementById("mStudent").textContent =
-        `الطالب: ${data.student} — الصف: ${data.grade} — الشعبة: ${data.section} — العام الدراسي: ${data.academic_year || ""}`;
-
-      const rows = data.rows || [];
-      renderRows(rows);
-
-      // ✅ فقط نتيجة الفترة (بدون النتيجة النهائية)
-      const pLabel = firstNonEmpty(data, ["period_label","periodLabel","period","periodName"]);
-      const pOv    = firstNonEmpty(data, ["period_overall","periodOverall","period_result","periodResult","periodStatus"]);
-      if (String(pLabel||"").trim() && String(pOv||"").trim()){
-        setPill(document.getElementById("mPeriod"), `${pLabel}: ${pOv}`);
-      } else {
-        const p = detectAnnouncedPeriod(rows);
-        const pov = computePeriodOverall(rows, p.key);
-        setPill(document.getElementById("mPeriod"), `${p.label}: ${pov}`);
-      }
-
-      // جدول الدور الثاني يظهر فقط إذا يوجد درجات دور ثاني (وغالباً للـ مكملين)
-      renderD2FromRows(rows, true);
-
-      document.getElementById("modalBg").style.display = "flex";
-    }
-
-    document.getElementById("btn").addEventListener("click", async () => {
-      const pin = document.getElementById("pin").value.trim();
-      const token = qs("t");
-      const msg = document.getElementById("msg");
-      msg.textContent = "";
-      msg.className = "";
-
-      if(!token){
-        msg.textContent = "الرابط لا يحتوي Token. امسح QR الصحيح من الورقة.";
-        msg.className = "bad";
-        return;
-      }
-      if(pin.length < 4){
-        msg.textContent = "أدخل PIN صحيح.";
-        msg.className = "bad";
-        return;
-      }
-
-      try{
-        const resp = await fetch(API_URL, {
-          method: "POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({ token, pin })
-        });
-        const data = await resp.json();
-        if(!data || !data.ok){
-          msg.textContent = (data && data.error) ? data.error : "PIN غير صحيح أو نتيجة غير موجودة.";
-          msg.className = "bad";
-          return;
-        }
-        openModal(data);
-      }catch(e){
-        msg.textContent = "تعذر الاتصال بخدمة التحقق.";
-        msg.className = "bad";
-      }
-    });
-  </script>
+  });
+</script>
 </body>
 </html>
