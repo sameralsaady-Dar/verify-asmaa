@@ -45,7 +45,7 @@
   </div>
 
   <div id="modalBg" class="modal-bg">
-    <div class="modal">
+    <div class="modal" id="modal">
       <div class="head">
         <div class="title">
           <h2 id="mSchool">—</h2>
@@ -57,11 +57,14 @@
             <div id="mOverall" class="pill">—</div>
             <div id="mPeriod" class="pill">—</div>
           </div>
-          <button style="margin-top:10px" onclick="closeModal()">إغلاق</button>
+          <p class="muted" style="margin:10px 0 0">
+            للإغلاق: اضغط خارج النافذة أو اضغط Esc
+          </p>
         </div>
       </div>
 
       <div class="sectionTitle">جدول الدرجات</div>
+      <!-- ✅ الجدول الرئيسي بدون أعمدة الدور الثاني -->
       <table>
         <thead>
           <tr>
@@ -72,13 +75,12 @@
             <th>السعي السنوي</th>
             <th>الامتحان النهائي</th>
             <th>الدرجة النهائية (د1)</th>
-            <th>امتحان الدور الثاني</th>
-            <th>الدرجة النهائية (د2)</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
       </table>
 
+      <!-- ✅ جدول الدور الثاني فقط (للـ مكملين / أو من لديه درجات دور ثاني) -->
       <div id="d2Wrap" class="hide">
         <div class="sectionTitle">جدول درجات الدور الثاني</div>
         <table>
@@ -96,10 +98,24 @@
   </div>
 
   <script>
-    // ✅ المستخرج من كودك القديم
     const API_URL = "https://verify-asmaa-worker.sameralsaady.workers.dev/verify";
 
-    function closeModal(){ document.getElementById("modalBg").style.display = "none"; }
+    function closeModal(){
+      document.getElementById("modalBg").style.display = "none";
+    }
+
+    // إغلاق بالضغط خارج النافذة
+    document.getElementById("modalBg").addEventListener("click", (e)=>{
+      if (e.target.id === "modalBg") closeModal();
+    });
+
+    // منع الإغلاق عند الضغط داخل النافذة
+    document.getElementById("modal").addEventListener("click", (e)=> e.stopPropagation());
+
+    // إغلاق بزر Esc
+    document.addEventListener("keydown", (e)=>{
+      if (e.key === "Escape") closeModal();
+    });
 
     function qs(name){
       const u = new URL(location.href);
@@ -125,6 +141,17 @@
       else if (t.includes("ناجح")) el.classList.add("ok");
     }
 
+    // ✅ تنظيف رموز الشطب الغريبة (قرار 50)
+    function cleanCell(v){
+      if (v === null || v === undefined) return "";
+      let s = String(v);
+      // إزالة Combining StrikeThrough
+      s = s.replace(/\u0336/g, "");
+      // تنظيف مسافات
+      s = s.replace(/\s+/g, " ").trim();
+      return s;
+    }
+
     function isDecisionValue(v){
       const s = String(v ?? "");
       return s.includes("(50)") || s.includes("（50）");
@@ -132,16 +159,14 @@
 
     function numFrom(v){
       if (v === null || v === undefined) return null;
-      const s = String(v).trim();
-      if (!s) return null;
-      const cleaned = s.replace(/\u0336/g, "");
-      const m = cleaned.match(/(\d+(\.\d+)?)/);
+      const s0 = cleanCell(v);
+      if (!s0) return null;
+      const m = s0.match(/(\d+(\.\d+)?)/);
       if (!m) return null;
       const n = parseFloat(m[1]);
       return Number.isFinite(n) ? n : null;
     }
 
-    // ✅ اكتشاف “الفترة المُعلنة” من الـ rows فقط (بدون مفاتيح جديدة)
     function detectAnnouncedPeriod(rows){
       const has = (k) => (rows || []).some(r => String(r?.[k] ?? "").trim() !== "");
       if (has("final1")) return { label: "نتيجة الدرجة النهائية", key: "final1" };
@@ -161,7 +186,8 @@
         const subj = String(r?.subject ?? "").trim();
         if (!subj) continue;
 
-        const sv = String(r?.[key] ?? "").trim();
+        const raw = r?.[key];
+        const sv = cleanCell(raw);
         if (!sv) continue;
 
         hasAny = true;
@@ -190,12 +216,10 @@
           ["effort", ""],
           ["final_exam", ""],
           ["final1", ""],
-          ["d2_exam", ""],
-          ["final2", ""],
         ];
         for(const [k, cls] of cells){
           const td = document.createElement("td");
-          td.textContent = (r?.[k] ?? "");
+          td.textContent = cleanCell(r?.[k] ?? "");
           if(cls) td.className = cls;
           tr.appendChild(td);
         }
@@ -203,7 +227,6 @@
       }
     }
 
-    // ✅ جدول الدور الثاني: أولاً من مفاتيح الووركر إن وجدت، وإلا نشتقه من rows
     function getMakeupRows(data){
       const v = firstNonEmpty(data, ["makeup_rows","makeupRows","d2_rows","second_round","makeup"]);
       if (Array.isArray(v)) return v;
@@ -236,9 +259,9 @@
           f2   = r.final2 || r.f2 || r.final_second || "";
         }
         const tr = document.createElement("tr");
-        const td1 = document.createElement("td"); td1.textContent = subj; td1.className="subject";
-        const td2 = document.createElement("td"); td2.textContent = d2;
-        const td3 = document.createElement("td"); td3.textContent = f2;
+        const td1 = document.createElement("td"); td1.textContent = cleanCell(subj); td1.className="subject";
+        const td2 = document.createElement("td"); td2.textContent = cleanCell(d2);
+        const td3 = document.createElement("td"); td3.textContent = cleanCell(f2);
         tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
         tb.appendChild(tr);
       }
@@ -247,7 +270,7 @@
       return true;
     }
 
-    function renderD2FromRows(rows){
+    function renderD2FromRows(rows, onlyIfMakeup){
       const wrap = document.getElementById("d2Wrap");
       const tb = document.getElementById("tbodyD2");
       tb.innerHTML = "";
@@ -258,6 +281,12 @@
         return d2 !== "" || f2 !== "";
       });
 
+      // يظهر فقط للمكملين: إما overall يحتوي مكمل أو يوجد فعلاً درجات دور ثاني
+      if (onlyIfMakeup && !d2Rows.length){
+        wrap.classList.add("hide");
+        return;
+      }
+
       if (!d2Rows.length){
         wrap.classList.add("hide");
         return;
@@ -265,9 +294,9 @@
 
       for (const r of d2Rows){
         const tr = document.createElement("tr");
-        const td1 = document.createElement("td"); td1.textContent = r?.subject ?? ""; td1.className="subject";
-        const td2 = document.createElement("td"); td2.textContent = r?.d2_exam ?? "";
-        const td3 = document.createElement("td"); td3.textContent = r?.final2 ?? "";
+        const td1 = document.createElement("td"); td1.textContent = cleanCell(r?.subject ?? ""); td1.className="subject";
+        const td2 = document.createElement("td"); td2.textContent = cleanCell(r?.d2_exam ?? "");
+        const td3 = document.createElement("td"); td3.textContent = cleanCell(r?.final2 ?? "");
         tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
         tb.appendChild(tr);
       }
@@ -281,12 +310,13 @@
       document.getElementById("mStudent").textContent =
         `الطالب: ${data.student} — الصف: ${data.grade} — الشعبة: ${data.section} — العام الدراسي: ${data.academic_year || ""}`;
 
-      setPill(document.getElementById("mOverall"), "النتيجة النهائية: " + (data.overall || "—"));
+      const overall = (data.overall || "—");
+      setPill(document.getElementById("mOverall"), "النتيجة النهائية: " + overall);
 
       const rows = data.rows || [];
       renderRows(rows);
 
-      // ✅ نتيجة الفترة: إن أرجعها الووركر نستخدمها، وإلا نحسبها
+      // نتيجة الفترة: إن رجعها الووركر نعرضها وإلا نحسبها من rows
       const pLabel = firstNonEmpty(data, ["period_label","periodLabel","period","periodName"]);
       const pOv    = firstNonEmpty(data, ["period_overall","periodOverall","period_result","periodResult","periodStatus"]);
       if (String(pLabel||"").trim() && String(pOv||"").trim()){
@@ -297,10 +327,11 @@
         setPill(document.getElementById("mPeriod"), `${p.label}: ${pov}`);
       }
 
-      // ✅ جدول الدور الثاني: إذا الووركر أرسله نعرضه، وإلا نشتقه من rows
+      // جدول الدور الثاني: نعرضه فقط للمكملين/أو من لديه درجات دور ثاني فعلاً
+      const isMakeup = String(overall).includes("مكمل");
       const mk = getMakeupRows(data);
       const shown = renderD2Rows(mk);
-      if (!shown) renderD2FromRows(rows);
+      if (!shown) renderD2FromRows(rows, true /* onlyIfMakeup */);
 
       document.getElementById("modalBg").style.display = "flex";
     }
