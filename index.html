@@ -109,7 +109,7 @@
       document.getElementById("mSchool").textContent = data.school || "—";
       document.getElementById("mPrincipal").textContent = "المديرة: " + (data.principal || "—");
       document.getElementById("mStudent").textContent =
-        `الطالب: ${data.student} — الصف: ${data.grade} — الشعبة: ${data.section} — العام الدراسي: ${data.academic_year || ""}`;
+        الطالب: ${data.student} — الصف: ${data.grade} — الشعبة: ${data.section} — العام الدراسي: ${data.academic_year || ""};
 
       document.getElementById("mOverall").textContent = "النتيجة: " + (data.overall || "—");
       const ov = (data.overall || "");
