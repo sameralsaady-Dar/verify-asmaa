@@ -35,7 +35,6 @@
     <h2>التحقق من النتيجة</h2>
     <p class="muted">امسح QR من الورقة، ثم أدخل PIN الموجود أسفل الورقة لعرض جدول الدرجات.</p>
 
-    <!-- ✅ تم التعديل هنا -->
     <input id="pin"
            type="text"
            inputmode="text"
@@ -92,6 +91,22 @@
 
 <script>
   const API_URL = "https://verify-asmaa-worker.sameralsaady.workers.dev/verify";
+
+  const pinEl = document.getElementById("pin");
+
+  // ✅ منع المسافات + تحويل لحروف كبيرة (Case-insensitive عملياً)
+  pinEl.addEventListener("input", (e)=>{
+    e.target.value = e.target.value.replace(/\s+/g,'').toUpperCase();
+  });
+
+  // ✅ فوكس تلقائي عند فتح الصفحة + محاولة إظهار الكيبورد بالموبايل
+  function focusPin(){
+    pinEl.focus({ preventScroll: true });
+    // بعض أجهزة أندرويد لا تُظهر الكيبورد إلا بعد "تفاعل" بسيط،
+    // لذلك نعيد المحاولة بعد لحظة:
+    setTimeout(()=> pinEl.focus({ preventScroll: true }), 350);
+  }
+  window.addEventListener("load", focusPin);
 
   function closeModal(){
     document.getElementById("modalBg").style.display = "none";
@@ -183,13 +198,15 @@
     document.getElementById("modalBg").style.display = "flex";
   }
 
-  // ✅ منع المسافات تلقائياً
-  document.getElementById("pin").addEventListener("input", (e)=>{
-    e.target.value = e.target.value.replace(/\s+/g,'');
+  // ✅ Enter داخل الحقل يعمل "تحقق"
+  pinEl.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){
+      document.getElementById("btn").click();
+    }
   });
 
   document.getElementById("btn").addEventListener("click", async ()=>{
-    const pin = document.getElementById("pin").value.trim();
+    const pin = pinEl.value.trim(); // بلا مسافات وبحروف كبيرة
     const token = qs("t");
     const msg = document.getElementById("msg");
     msg.textContent=""; msg.className="";
