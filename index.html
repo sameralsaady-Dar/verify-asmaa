@@ -35,7 +35,15 @@
     <h2>التحقق من النتيجة</h2>
     <p class="muted">امسح QR من الورقة، ثم أدخل PIN الموجود أسفل الورقة لعرض جدول الدرجات.</p>
 
-    <input id="pin" inputmode="numeric" placeholder="PIN" />
+    <!-- ✅ تم التعديل هنا -->
+    <input id="pin"
+           type="text"
+           inputmode="text"
+           placeholder="PIN"
+           autocapitalize="none"
+           spellcheck="false"
+           autocomplete="off" />
+
     <button id="btn">تحقق</button>
     <div id="msg"></div>
   </div>
@@ -174,6 +182,11 @@
 
     document.getElementById("modalBg").style.display = "flex";
   }
+
+  // ✅ منع المسافات تلقائياً
+  document.getElementById("pin").addEventListener("input", (e)=>{
+    e.target.value = e.target.value.replace(/\s+/g,'');
+  });
 
   document.getElementById("btn").addEventListener("click", async ()=>{
     const pin = document.getElementById("pin").value.trim();
