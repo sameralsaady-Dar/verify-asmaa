@@ -35,6 +35,7 @@
     <h2>التحقق من النتيجة</h2>
     <p class="muted">امسح QR من الورقة، ثم أدخل PIN الموجود أسفل الورقة لعرض جدول الدرجات.</p>
 
+    <!-- ✅ كيبورد كامل + لا تصحيح تلقائي -->
     <input id="pin"
            type="text"
            inputmode="text"
@@ -91,22 +92,7 @@
 
 <script>
   const API_URL = "https://verify-asmaa-worker.sameralsaady.workers.dev/verify";
-
   const pinEl = document.getElementById("pin");
-
-  // ✅ منع المسافات + تحويل لحروف كبيرة (Case-insensitive عملياً)
-  pinEl.addEventListener("input", (e)=>{
-    e.target.value = e.target.value.replace(/\s+/g,'').toUpperCase();
-  });
-
-  // ✅ فوكس تلقائي عند فتح الصفحة + محاولة إظهار الكيبورد بالموبايل
-  function focusPin(){
-    pinEl.focus({ preventScroll: true });
-    // بعض أجهزة أندرويد لا تُظهر الكيبورد إلا بعد "تفاعل" بسيط،
-    // لذلك نعيد المحاولة بعد لحظة:
-    setTimeout(()=> pinEl.focus({ preventScroll: true }), 350);
-  }
-  window.addEventListener("load", focusPin);
 
   function closeModal(){
     document.getElementById("modalBg").style.display = "none";
@@ -198,35 +184,70 @@
     document.getElementById("modalBg").style.display = "flex";
   }
 
-  // ✅ Enter داخل الحقل يعمل "تحقق"
+  // ✅ منع المسافات تلقائياً (بدون تغيير Case هنا)
+  pinEl.addEventListener("input", (e)=>{
+    e.target.value = e.target.value.replace(/\s+/g,'');
+  });
+
+  // ✅ فوكس تلقائي عند فتح الصفحة + محاولة إظهار الكيبورد
+  function focusPin(){
+    pinEl.focus({ preventScroll: true });
+    setTimeout(()=> pinEl.focus({ preventScroll: true }), 350);
+  }
+  window.addEventListener("load", focusPin);
+
+  // ✅ Enter داخل الحقل = تحقق
   pinEl.addEventListener("keydown", (e)=>{
     if(e.key === "Enter"){
       document.getElementById("btn").click();
     }
   });
 
+  async function verifyPin(pin, token){
+    const r = await fetch(API_URL,{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ token, pin })
+    });
+    return await r.json();
+  }
+
+  // ✅ التحقق: يجرب كما هو ثم Uppercase ثم Lowercase
   document.getElementById("btn").addEventListener("click", async ()=>{
-    const pin = pinEl.value.trim(); // بلا مسافات وبحروف كبيرة
+    const rawPin = pinEl.value.trim().replace(/\s+/g,'');
     const token = qs("t");
     const msg = document.getElementById("msg");
     msg.textContent=""; msg.className="";
 
     if(!token){ msg.textContent="الرابط لا يحتوي Token."; msg.className="bad"; return; }
-    if(pin.length<4){ msg.textContent="أدخل PIN صحيح."; msg.className="bad"; return; }
+    if(rawPin.length<4){ msg.textContent="أدخل PIN صحيح."; msg.className="bad"; return; }
 
     try{
-      const r = await fetch(API_URL,{
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ token, pin })
-      });
-      const data = await r.json();
+      // 1) كما أدخله المستخدم
+      let data = await verifyPin(rawPin, token);
+
+      // 2) إذا فشل: جرّب Uppercase / Lowercase
+      if(!data?.ok){
+        const up = rawPin.toUpperCase();
+        const low = rawPin.toLowerCase();
+
+        if(up !== rawPin){
+          data = await verifyPin(up, token);
+        }
+
+        if(!data?.ok && low !== rawPin && low !== up){
+          data = await verifyPin(low, token);
+        }
+      }
+
       if(!data || !data.ok){
         msg.textContent = data?.error || "PIN غير صحيح.";
         msg.className="bad";
         return;
       }
+
       openModal(data);
+
     }catch{
       msg.textContent="تعذر الاتصال بخدمة التحقق.";
       msg.className="bad";
